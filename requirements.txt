@@ -1,0 +1,8 @@
+streamlit
+opencv-python
+pillow
+cryptography
+numpy
+onnxruntime
+insightface==0.7.3
+pytesseract
