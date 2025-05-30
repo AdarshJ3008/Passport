@@ -1,19 +1,17 @@
 # utils/passport_ocr.py
+
 import cv2, re, pytesseract, streamlit as st
 from typing import Tuple, Optional, Dict
 
-# Point to your local Tesseract binary
-pytesseract.pytesseract.tesseract_cmd = r"C:\Program Files\Tesseract-OCR\tesseract.exe"
+# ❌ DO NOT SET tesseract_cmd here — it's available in system PATH on Streamlit Cloud
 
-
-# ──────────────────────────────────────────────────────────────
 def extract_viz_and_mrz(image_path: str) -> Tuple[Dict[str, str], Optional[str]]:
-    # 1️⃣  VIZ OCR (whole page) --------------------------------
-    img  = cv2.imread(image_path)
+    # 1️⃣ VIZ OCR (full page)
+    img = cv2.imread(image_path)
     gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
     _, bw = cv2.threshold(gray, 127, 255, cv2.THRESH_BINARY)
 
-    raw_viz   = pytesseract.image_to_string(bw)
+    raw_viz = pytesseract.image_to_string(bw)
     viz_lines = [ln.strip() for ln in raw_viz.splitlines() if ln.strip()]
 
     viz_data: Dict[str, str] = {}
@@ -29,6 +27,7 @@ def extract_viz_and_mrz(image_path: str) -> Tuple[Dict[str, str], Optional[str]]
         "date_of_expiry":  r"Date\s+of\s+Expiry\s*[:\-]?\s*([\d\-\/]+)",
         "authority":       r"Authority\s*[:\-]?\s*(.+)",
     }
+
     for ln in viz_lines:
         for key, pat in patterns.items():
             if key not in viz_data:
@@ -36,14 +35,14 @@ def extract_viz_and_mrz(image_path: str) -> Tuple[Dict[str, str], Optional[str]]
                 if m:
                     viz_data[key] = m.group(1).strip()
 
-    # 2️⃣  Crop bottom 20 % for MRZ ----------------------------
+    # 2️⃣ MRZ Crop (bottom 20%)
     h = gray.shape[0]
     mrz_crop = gray[int(h * 0.80):]
     mrz_crop = cv2.resize(mrz_crop, None, fx=2, fy=2, interpolation=cv2.INTER_CUBIC)
     _, mrz_bin = cv2.threshold(mrz_crop, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
     st.image(mrz_bin, caption="🧪 MRZ Cropped Region", use_column_width=True)
 
-    # 3️⃣  Tesseract OCR (try OCR-B ➔ fall back to ENG) --------
+    # 3️⃣ OCR Config
     cfg_base = (
         "--oem 1 --psm 6 "
         "-c tessedit_char_whitelist=ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789< "
@@ -60,34 +59,23 @@ def extract_viz_and_mrz(image_path: str) -> Tuple[Dict[str, str], Optional[str]]
     st.subheader("📄 Full MRZ OCR Output (raw)")
     st.code(mrz_raw)
 
-    # 4️⃣  Clean + fix ‘K’ glitch + collapse fillers + pad -----    
+    # 4️⃣ Clean + Pad
     def clean_line(s: str) -> str:
-        """
-        • strip spaces
-        • replace spurious K beside fillers
-        • collapse runs of filler chars to `<<`
-        """
         s = s.strip().replace(" ", "")
         if not s:
             return s
-        s = re.sub(r"K(?=<)", "<", s)          # 'K<'  ➜ '<<'
-        s = re.sub(r"(?<=<)K", "<", s)         # '<K'  ➜ '<<'
-        s = re.sub(r"K(<+)$", r"<\1", s)       # 'JOHNK<<<<' ➜ 'JOHN<<<<'
-        s = re.sub(r"<<{2,}", "<<", s)         # '<<<'.. ➜ '<<'
+        s = re.sub(r"K(?=<)", "<", s)
+        s = re.sub(r"(?<=<)K", "<", s)
+        s = re.sub(r"K(<+)$", r"<\1", s)
+        s = re.sub(r"<<{2,}", "<<", s)
         return s
 
     raw_lines = [clean_line(l) for l in mrz_raw.splitlines() if len(l.strip()) >= 25]
 
     def pad44(line: str) -> str:
-        """
-        • keep only A-Z, 0-9, '<'
-        • if > 44 chars, keep right-most char (likely checksum) and
-          trim fillers before it
-        • if < 44, pad with '<'
-        """
         line = re.sub(r"[^A-Z0-9<]", "", line.upper())
         if len(line) > 44:
-            line = line[:43] + line[-1]          # preserve trailing checksum
+            line = line[:43] + line[-1]
         return line.ljust(44, "<")
 
     mrz_text: Optional[str] = None
