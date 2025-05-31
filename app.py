@@ -5,7 +5,7 @@ from PIL import Image
 from utils.face_utils      import extract_face_embedding, match_face
 from utils.passport_ocr    import extract_viz_and_mrz
 from utils.mrz_decoder     import decode_mrz
-from utils.storage         import save_verified_user, is_user_verified
+# from utils.storage       import save_verified_user, is_user_verified  # disabled for test mode
 
 # ─── Streamlit page config ─────────────────────────────────
 st.set_page_config(page_title="Passport Verification", layout="centered")
@@ -31,7 +31,7 @@ else:
         face_img_file = up
 
 if face_img_file:
-    # Save the face image
+    # Save the face image temporarily
     face_path = "captured/webcam_face.jpg"
     with open(face_path, "wb") as f:
         f.write(face_img_file.getbuffer())
@@ -45,14 +45,8 @@ if face_img_file:
         st.error("❌ No face detected in uploaded image.")
         st.stop()
 
-    # ─── Step 2: Check if user is already verified ──────────
-    st.write("🔍 Checking if user already verified...")
-    is_known, stored_data = is_user_verified(emb_face)
-
-    if is_known:
-        st.success("✅ Face matched with existing record!")
-        st.json(stored_data)
-        st.stop()
+    # ─── Step 2: Skip local verification for test mode ──────
+    st.info("🆕 No previous user match checked (Test Mode – DB disabled).")
 
     # ─── Step 3: Upload passport ────────────────────────────
     passport_img = st.file_uploader("📄 Now upload your passport image", type=["jpg", "jpeg", "png"])
@@ -76,7 +70,8 @@ if face_img_file:
         if emb_passport is not None:
             if match_face(emb_face, emb_passport):
                 st.success("✅ Face matched! Verification successful.")
-                save_verified_user(emb_face, {**viz_data, **decoded})
+                st.caption("✔ No data has been saved. Test mode enabled.")
+                # save_verified_user(emb_face, {**viz_data, **decoded})  # Disabled
             else:
                 st.error("❌ Face does not match. Please try again.")
         else:
@@ -84,4 +79,4 @@ if face_img_file:
 
 # ─── Footer ───────────────────────────────────────────────
 st.markdown("---")
-st.caption("🔒 All processing is done locally; your data never leaves your machine.")
+st.caption("🔒 Test Mode: No data is stored or saved.")
