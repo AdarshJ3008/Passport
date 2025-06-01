@@ -1,6 +1,8 @@
 import os
 import streamlit as st
 from PIL import Image
+import qrcode
+import io
 
 from utils.face_utils      import extract_face_embedding, match_face
 from utils.passport_ocr    import extract_viz_and_mrz
@@ -72,6 +74,21 @@ if face_img_file:
                 st.success("✅ Face matched! Verification successful.")
                 st.caption("✔ No data has been saved. Test mode enabled.")
                 # save_verified_user(emb_face, {**viz_data, **decoded})  # Disabled
+
+                # ─── Step 6: Generate QR code ──────────────────────
+                st.subheader("🆔 Visitor QR Code")
+                qr_data = {
+                    "Name": decoded.get("name") or viz_data.get("Name"),
+                    "Passport No": decoded.get("passport_number"),
+                    "Expiry": decoded.get("expiration_date")
+                }
+                qr_payload = "\n".join(f"{k}: {v}" for k, v in qr_data.items() if v)
+
+                qr = qrcode.make(qr_payload)
+                buf = io.BytesIO()
+                qr.save(buf)
+                st.image(buf.getvalue(), caption="Scan this for verification", width=250)
+
             else:
                 st.error("❌ Face does not match. Please try again.")
         else:
