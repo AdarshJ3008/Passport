@@ -1,5 +1,5 @@
 streamlit
-opencv-python
+opencv-python-headless
 pillow
 cryptography
 numpy
@@ -7,4 +7,3 @@ onnxruntime
 insightface==0.7.3
 pytesseract
 qrcode[pil]
-
